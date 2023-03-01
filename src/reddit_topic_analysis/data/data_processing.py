@@ -56,6 +56,37 @@ def load_environment_variables(env_file: str) -> None:
         logger.warning("File not found. Could not load environment variables.")
 
 
+def save_spacy_language_model(model: spacy.language.Language, model_name: str) -> None:
+    """write the spacy language model to disk.
+    Args:
+        model: The spacy language model.
+        model_name: The full path of where to save the model.
+        """
+    try:
+        model.to_disk(model_name)
+        logger.info(f"Saved spacy language model to {model_name}")
+    except OSError as e:
+        logger.error(f"Could not save spacy language model to {model_name}")
+        logger.error(e)
+
+
+def load_spacy_language_model(model_name: str) -> spacy.language.Language:
+    """Load the spacy language model from disk.
+    Args:
+        model_name: The full path of where the model was saved to disk.
+    Returns:
+        spacy.language.Language: The spacy language model.
+        """
+    try:
+        model = spacy.load(model_name)
+        logger.info(f"Loaded spacy language model from {model_name}")
+        return model
+    except OSError as e:
+        logger.error(f"Could not load spacy language model from {model_name}")
+        logger.error(e)
+        return None
+
+
 def set_reddit_credentials(client_id: str, client_secret: str) -> None:
     """Set the Reddit credentials environment variables."""
     os.environ['REDDIT_CLIENT_ID'] = client_id
