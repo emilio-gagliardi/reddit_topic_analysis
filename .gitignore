@@ -52,3 +52,6 @@ MANIFEST
 .venv*/
 .conda*/
 .python-version
+venv/
+# environment variables
+src/reddit_topic_analysis/.config/environment.env
