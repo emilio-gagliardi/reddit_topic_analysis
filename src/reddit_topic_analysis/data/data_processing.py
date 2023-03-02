@@ -5,11 +5,12 @@ from loguru import logger
 import praw
 import pandas as pd
 import numpy
-from typing import Optional, List, Dict, Tuple, Any
+from typing import Optional, List, Dict, Tuple, Any, TypeVar
 import re
 import spacy
 from spacy.lang.en import STOP_WORDS as spacy_stopwords
 from spacy.tokens import Span
+from spacy.lang import Lemmatizer
 import textatistic
 import sklearn.feature_extraction.text
 import scipy.sparse
@@ -20,9 +21,8 @@ spacy.prefer_gpu()
 
 PROJECT_NAME = "reddit_topic_analysis"
 
-
-def hello():
-    print("hello from data_processing.py")
+NLPTokenizer = TypeVar('NLPTokenizer', bound='spacy.tokenizer.Tokenizer')
+NLPLemmatizer = TypeVar('NLPLemmatizer', bound=Lemmatizer)
 
 
 def get_project_dir(cwd: str, base_dir: str) -> str:
@@ -59,8 +59,9 @@ def load_environment_variables(env_file_path: str) -> None:
 
 def app_setup(language_model_path: str):
     rta_nlp = spacy.load("en_core_web_sm")
+    rta_nlp.add_pipe("merge_entities")
     print(language_model_path)
-    rta_nlp.to_disk(language_model_path)
+    save_spacy_language_model(rta_nlp, language_model_path)
 
 
 def save_spacy_language_model(model: spacy.language.Language, model_name: str) -> None:
@@ -188,7 +189,7 @@ def extract_submission_info(subreddit_conn: praw.models.Subreddit,
     return submission_subset_list
 
 
-def count_words(tokenizer, text: str) -> int:
+def count_words(tokenizer: NLPTokenizer, text: str) -> int:
     doc = tokenizer(text)
     return len(doc)
 
@@ -233,13 +234,32 @@ def compute_readability(text: str) -> Dict[str, float]:
     return readability_scores
 
 
-def get_sentences(tokenizer, text: str) -> List[Span]:
+def get_sentences(tokenizer: NLPTokenizer, text: str) -> List[Any]:
+    """
+    get the sentences from a text. Using SpaCy's default sentence tokenizer.
+    SpaCy returns a generator of spacy.Spans, so we convert it to a list.
+    Args:
+        tokenizer: a model that takes text and returns a set of sentences.
+        text: the text to get the sentences from.
+
+    Returns:
+        List[Any]: a list of sentences.
+    """
     doc = tokenizer(text)
     sentences = list(doc.sents)
     return sentences
 
 
-def get_all_tokens(tokenizer, text) -> List[str]:
+def get_all_tokens(tokenizer: NLPTokenizer, text) -> List[str]:
+    """
+    get all tokens from a text in contrast to lemmas where there are fewer lemmas than tokens.
+    Args:
+        tokenizer: a class that takes a text and returns a set of tokens.
+        text:
+
+    Returns:
+
+    """
     doc = tokenizer(text)
     tokens = [token.text for token in doc]
     return tokens
@@ -247,7 +267,7 @@ def get_all_tokens(tokenizer, text) -> List[str]:
 
 def get_all_lemmas(lemmatizer, text: str) -> List[str]:
     """Get all lemmas for a text.
-    Currently using SpaCy's default lemmatizer pipe .:. function syntax
+    Currently, using SpaCy's default lemmatizer pipe .:. function syntax
     follows SpaCy's usage.
     Args:
         lemmatizer: The SpaCy lemmatizer currently.
@@ -262,7 +282,7 @@ def get_all_lemmas(lemmatizer, text: str) -> List[str]:
 
 def get_all_pos(parser, text:str) -> List[Tuple[str, str]]:
     """Get all parts of speech for a text.
-    Currently using SpaCy's default parsing pipe .:. function syntax
+    Currently, using SpaCy's default parsing pipe .:. function syntax
     follows SpaCy's usage.
     Args:
         parser: The SpaCy default parser in spacy.Language
@@ -275,14 +295,14 @@ def get_all_pos(parser, text:str) -> List[Tuple[str, str]]:
     return pos
 
 
-def remove_stopwords(tokens, stopwords):
+def remove_stopwords(tokens: List, stopwords: List) -> List:
     filtered_tokens = [token for token in tokens if token not in stopwords]
     return filtered_tokens
 
 
-def preprocess_for_vectorization(text):
+def preprocess_for_vectorization(model, text):
     # Create Doc object
-    doc = nlp(text, disable=['ner', 'parser'])
+    doc = model(text, disable=['ner', 'parser'])
     # Generate lemmas
     lemmas = get_all_lemmas(doc)
     # Remove stopwords
