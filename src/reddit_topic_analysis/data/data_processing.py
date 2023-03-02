@@ -17,14 +17,15 @@ import scipy.sparse
 # import textacy
 # enable CUDA support
 spacy.prefer_gpu()
-nlp = spacy.load("en_core_web_sm")
+
+PROJECT_NAME = "reddit_topic_analysis"
 
 
 def hello():
     print("hello from data_processing.py")
 
 
-def get_project_dir(cwd: str, base_dir: str) -> None:
+def get_project_dir(cwd: str, base_dir: str) -> str:
     """
     Returns the topmost directory of the project directory structure,
     given the current working directory.
@@ -47,13 +48,19 @@ def get_project_dir(cwd: str, base_dir: str) -> None:
         current_dir = os.path.dirname(current_dir)
 
 
-def load_environment_variables(env_file: str) -> None:
-    if os.path.isfile(env_file):
+def load_environment_variables(env_file_path: str) -> None:
+    if os.path.isfile(env_file_path):
         # Load the environment variables from the .env file
-        dotenv.load_dotenv(dotenv_path=env_file)
+        dotenv.load_dotenv(dotenv_path=env_file_path)
         logger.info("Loading environment variables.")
     else:
         logger.warning("File not found. Could not load environment variables.")
+
+
+def app_setup(language_model_path: str):
+    rta_nlp = spacy.load("en_core_web_sm")
+    print(language_model_path)
+    rta_nlp.to_disk(language_model_path)
 
 
 def save_spacy_language_model(model: spacy.language.Language, model_name: str) -> None:
@@ -181,8 +188,8 @@ def extract_submission_info(subreddit_conn: praw.models.Subreddit,
     return submission_subset_list
 
 
-def count_words(text: str) -> int:
-    doc = nlp(text)
+def count_words(tokenizer, text: str) -> int:
+    doc = tokenizer(text)
     return len(doc)
 
 
@@ -226,26 +233,44 @@ def compute_readability(text: str) -> Dict[str, float]:
     return readability_scores
 
 
-def get_sentences(text: str) -> List[Span]:
-    doc = nlp(text)
+def get_sentences(tokenizer, text: str) -> List[Span]:
+    doc = tokenizer(text)
     sentences = list(doc.sents)
     return sentences
 
 
-def get_all_tokens(text):
-    doc = nlp(text)
+def get_all_tokens(tokenizer, text) -> List[str]:
+    doc = tokenizer(text)
     tokens = [token.text for token in doc]
     return tokens
 
 
-def get_all_lemmas(text):
-    doc = nlp(text)
+def get_all_lemmas(lemmatizer, text: str) -> List[str]:
+    """Get all lemmas for a text.
+    Currently using SpaCy's default lemmatizer pipe .:. function syntax
+    follows SpaCy's usage.
+    Args:
+        lemmatizer: The SpaCy lemmatizer currently.
+        text (str): The text to get the lemmas from.
+    Returns:
+        List[str]: A list of lemmas.
+    """
+    doc = lemmatizer(text)
     lemmas = [token.lemma_ for token in doc]
     return lemmas
 
 
-def get_all_pos(text):
-    doc = nlp(text)
+def get_all_pos(parser, text:str) -> List[Tuple[str, str]]:
+    """Get all parts of speech for a text.
+    Currently using SpaCy's default parsing pipe .:. function syntax
+    follows SpaCy's usage.
+    Args:
+        parser: The SpaCy default parser in spacy.Language
+        text (str): The text to get the lemmas from.
+    Returns:
+        List[str]: A list of lemmas.
+    """
+    doc = parser(text)
     pos = [(token.text, token.pos_) for token in doc]
     return pos
 
@@ -466,9 +491,10 @@ def get_subreddit_submissions(subreddit, submission_type, limit):
     return submission_subset_list
 
 
-def setup():
+def main():
+    print("data_processing.py main()")
     print("Setting up project environment variables. data_processing.py setup()")
-    PROJECT_NAME = "reddit_topic_analysis"
+
     PROJECT_DIR = get_project_dir(os.getcwd(), PROJECT_NAME)
     DATA_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "data")
     LOGS_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "logs")
@@ -489,103 +515,10 @@ def setup():
                format="{time:YYYY-MM-DD at HH:mm:ss} {module}::{function} [{level}] {message}",
                level="DEBUG")
 
-
-def main():
-    print("data_processing.py main()")
-    # json_payload = reddit_topic_analysis.main.dicts_to_json(submission_subset_list)
-    # logger.debug(json_payload)
-    # save to MongoDB
-    # save_to_mongo_one(json_payload, "reddit_submissions")
-
-    # get raw submissions from MongoDB and preprocess for NLP
-    # results = load_from_mongo("reddit_submissions", None, 150)
-    # text_cols = ["title", "body", "comments"]
-    # raw_text = results[text_cols].copy()
-
-    # preprocess the text from reddit submissions
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_url)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_url)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_non_alphanumeric)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_non_alphanumeric)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_lowercase)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_lowercase)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_tokenization)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_tokenization)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_stopwords)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_stopwords)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_profanity)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_profanity)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(remove_words_by_length)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(remove_words_by_length)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(clean_filler_words)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(clean_filler_words)
-    #
-    # raw_text.loc[:, "title"] = raw_text["title"].apply(convert_to_string)
-    # raw_text.loc[:, "body"] = raw_text["body"].apply(convert_to_string)
-    # apply same preprocessing to comments which are nested dicts
-    # for i, row in raw_text.iterrows():
-    # print(row[1]["comments"])
-    # comments_dict = row["comments"]
-    # modified_dict = {key: convert_to_string(
-    #     remove_words_by_length(
-    #         clean_filler_words(
-    #             clean_profanity(
-    #                 clean_stopwords(
-    #                     clean_tokenization(
-    #                         clean_lowercase(
-    #                             clean_non_alphanumeric(
-    #                                 clean_url(value))))))))) for key, value in comments_dict.items()}
-    # raw_text.at[i, "comments"] = modified_dict
-    # list_of_dicts = raw_text.to_dict(orient="records")
-    # logger.debug(list_of_dicts)
-    # json_payload = dicts_to_json(list_of_dicts)
-    # save_to_mongo_one(json_payload, "cleaned_submissions")
-
-    # get cleaned submissions from MongoDB
-    # dataset = load_from_mongo("cleaned_submissions", None, 150)
-
-    # split data into titles and bodies and comments
-    # titles = dataset["title"]
-    # bodies = dataset["body"]
-    # text_cols = ["title", "body", "comments"]
-    # clean_tokenized_words = [titles, bodies]
-    # clean_tokenized_comments_dump = dataset["comments"]
-    # for item in range(2):
-    #     compute value_counts() for each item in the list
-    # plt.figure(figsize=(20, 10))
-    # pd.Series(' '.join([i for i in clean_tokenized_words[item]]).split()).value_counts(normalize=True).head(20).plot(kind="bar")
-    # plt.title(f"Top 20 words in {text_cols[item]}")
-    # plt.show()
-    #
-    # clean_tokenized_comments_list = []
-    # comments are stored in a dictionary, so we need to iterate through the dictionary
-
-    # for i, item in clean_tokenized_comments_dump.iteritems():
-    #     comments_dict = item
-    #     for key, value in comments_dict.items():
-    #         tokenized_list = value.split()
-    #         clean_tokenized_comments_list.extend(tokenized_list)
-
-    # logger.debug(clean_tokenized_comments_list)
-    # plt.figure(figsize=(20, 10))
-    # pd.Series(clean_tokenized_comments_list).value_counts().head(50).plot(kind="bar")
-    # plt.title("Top 50 words in comments")
-    # plt.show()
-
-    # need to compute metrics for each submission
-    # need to store metrics of each submission somewhere
-    # need to compute daily trends of topics
-    # need to get daily trends and return as some datastructure
-    # need to detect when a word in submission is not in vocabulary
-    # need to add new words to vocabulary
-    # need to regenerate word vectors when new words are added to vocabulary
+    model_path = os.path.join(DATA_DIR, "rta_nlp.bin")
+    if not os.path.isfile(model_path):
+        app_setup(model_path)
+    nlp = load_spacy_language_model(model_path)
 
     return True
 
