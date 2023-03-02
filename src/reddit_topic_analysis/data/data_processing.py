@@ -8,7 +8,6 @@ import numpy
 from typing import Optional, List, Dict, Tuple, Any, TypeVar
 import re
 import spacy
-from spacy.lang.en import STOP_WORDS as spacy_stopwords
 from spacy.tokens import Span
 from spacy.lang import Lemmatizer
 import textatistic
@@ -59,7 +58,6 @@ def load_environment_variables(env_file_path: str) -> None:
 
 def app_setup(language_model_path: str):
     rta_nlp = spacy.load("en_core_web_sm")
-    rta_nlp.add_pipe("merge_entities")
     print(language_model_path)
     save_spacy_language_model(rta_nlp, language_model_path)
 
@@ -265,7 +263,7 @@ def get_all_tokens(tokenizer: NLPTokenizer, text) -> List[str]:
     return tokens
 
 
-def get_all_lemmas(lemmatizer, text: str) -> List[str]:
+def get_all_lemmas(lemmatizer: NLPLemmatizer, text: str) -> List[str]:
     """Get all lemmas for a text.
     Currently, using SpaCy's default lemmatizer pipe .:. function syntax
     follows SpaCy's usage.
@@ -280,7 +278,7 @@ def get_all_lemmas(lemmatizer, text: str) -> List[str]:
     return lemmas
 
 
-def get_all_pos(parser, text:str) -> List[Tuple[str, str]]:
+def get_all_pos(parser, text: str) -> List[Tuple[str, str]]:
     """Get all parts of speech for a text.
     Currently, using SpaCy's default parsing pipe .:. function syntax
     follows SpaCy's usage.
@@ -300,21 +298,22 @@ def remove_stopwords(tokens: List, stopwords: List) -> List:
     return filtered_tokens
 
 
-def preprocess_for_vectorization(model, text):
+def preprocess_for_vectorization(model, text: str, **kwargs) -> str:
     # Create Doc object
-    doc = model(text, disable=['ner', 'parser'])
+    doc = model(text)
+    stopwords = kwargs.get("stopwords", None)
     # Generate lemmas
     lemmas = get_all_lemmas(doc)
-    # Remove stopwords
-    a_lemmas = remove_stopwords(lemmas, spacy_stopwords)
+    if stopwords:
+        lemmas = remove_stopwords(lemmas, stopwords)
 
-    return ' '.join(a_lemmas)
+    return ' '.join(lemmas)
 
 
 # Returns number of proper nouns
-def count_proper_nouns(text):
+def count_proper_nouns(model, text: str) -> int:
     # Create doc object
-    doc = nlp(text)
+    doc = model(text)
     # Generate list of POS tags
     pos = [token.pos_ for token in doc]
     # Return number of proper nouns
@@ -322,9 +321,9 @@ def count_proper_nouns(text):
 
 
 # Returns number of other nouns
-def count_nouns(text):
+def count_nouns(model, text: str) -> int:
     # Create doc object
-    doc = nlp(text)
+    doc = model(text)
     # Generate list of POS tags
     pos = [token.pos_ for token in doc]
 
@@ -332,43 +331,43 @@ def count_nouns(text):
     return pos.count("NOUN")
 
 
-def find_persons(text):
+def find_persons(model, text: str) -> List[str]:
     # Create Doc object
-    doc = nlp(text)
+    doc = model(text)
     # Identify the persons
     persons = [ent.text for ent in doc.ents if ent.label_ == 'PERSON']
     # Return persons
     return persons
 
 
-def find_nouns(text):
+def find_nouns(model, text: str) -> List[str]:
     # Create Doc object
-    doc = nlp(text)
+    doc = model(text)
     # Identify the nouns
     nouns = [token.text for token in doc if token.pos_ == 'NOUN']
     # Return nouns
     return nouns
 
 
-def find_proper_nouns(text):
+def find_proper_nouns(model, text: str) -> List[str]:
     # Create Doc object
-    doc = nlp(text)
+    doc = model(text)
     # Identify the nouns
     nouns = [token.text for token in doc if token.pos_ == 'PROPN']
     # Return nouns
     return nouns
 
 
-def find_verbs(text):
+def find_verbs(model, text: str) -> List[str]:
     # Create Doc object
-    doc = nlp(text)
+    doc = model(text)
     # Identify the verbs
     verbs = [token.text for token in doc if token.pos_ == 'VERB']
     # Return verbs
     return verbs
 
 
-def create_bow_matrix(text):
+def create_bow_matrix(text: str) -> scipy.sparse.csr_matrix:
     """Returns a sparse matrix of word counts"""
     # Create CountVectorizer object
     vectorizer = sklearn.feature_extraction.text.CountVectorizer()
@@ -377,7 +376,7 @@ def create_bow_matrix(text):
     return bow_matrix
 
 
-def create_tfidf_matrix(text):
+def create_tfidf_matrix(text: str) -> scipy.sparse.csr_matrix:
     """Returns a sparse matrix of TF-IDF scores"""
     # Create TfidfVectorizer object
     vectorizer = sklearn.feature_extraction.text.TfidfVectorizer()
@@ -396,7 +395,7 @@ def create_similarity_matrix(text, type="linear"):
     return similarity_matrix
 
 
-def map_sparse_matrix_to_labels(labels, matrix: scipy.sparse.csr_matrix):
+def map_sparse_matrix_to_labels(labels: List, matrix: scipy.sparse.csr_matrix) -> pd.Series:
     """Each row in the sparse matrix represents a document.
     Labels are the document names or titles or custom label
     """
@@ -418,7 +417,7 @@ def get_most_similar_documents(similarity_matrix, mappings, document, n=5):
     return most_similar
 
 
-def save_sparse_matrix(matrix, filename):
+def save_sparse_matrix(matrix: scipy.sparse.csr_matrix, filename: str) -> None:
     if isinstance(matrix, scipy.sparse.csr_matrix):
         try:
             scipy.sparse.save_npz(filename, matrix)
@@ -428,7 +427,7 @@ def save_sparse_matrix(matrix, filename):
         raise ValueError("Matrix must be of type scipy.sparse.csr_matrix")
 
 
-def load_sparse_matrix(filename):
+def load_sparse_matrix(filename: str) -> scipy.sparse.csr_matrix:
     matrix = scipy.sparse.csr_matrix((0, 0), dtype=int)
     try:
         matrix = scipy.sparse.load_npz(filename)
@@ -498,7 +497,7 @@ def convert_to_string(text: list) -> str:
     return text
 
 
-def get_subreddit_submissions(subreddit, submission_type, limit):
+def get_subreddit_submissions(subreddit: praw.reddit.Subreddit, submission_type: str, limit: int = 10) -> List[Dict]:
     """Get submissions from a subreddit
     :param subreddit: string of subreddit name
     :param submission_type: Type of submission "hot", "top", "new", "controversial", "gilded", "rising"
@@ -539,6 +538,7 @@ def main():
     if not os.path.isfile(model_path):
         app_setup(model_path)
     nlp = load_spacy_language_model(model_path)
+    spacy_stopwords = nlp.Defaults.stop_words
 
     return True
 
