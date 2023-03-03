@@ -56,3 +56,4 @@ venv/
 .env/
 # environment variables
 src/reddit_topic_analysis/.config/environment.env
+src/reddit_topic_analysis/model/rta_nlp/

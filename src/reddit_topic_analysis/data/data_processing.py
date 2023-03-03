@@ -1,15 +1,16 @@
 import os
+import string
+
 import better_profanity
 import dotenv
 from loguru import logger
 import praw
 import pandas as pd
 import numpy
-from typing import Optional, List, Dict, Tuple, Any, TypeVar
+from typing import List, Dict, Tuple, Any, TypeVar
 import re
 import spacy
-from spacy.tokens import Span
-from spacy.lang import Lemmatizer
+from spacy.lang.en.lemmatizer import Lemmatizer
 import textatistic
 import sklearn.feature_extraction.text
 import scipy.sparse
@@ -62,6 +63,11 @@ def app_setup(language_model_path: str):
     save_spacy_language_model(rta_nlp, language_model_path)
 
 
+def acceptable_chars() -> str:
+
+    return string.ascii_letters + string.digits + '_!@#$%^&*()'
+
+
 def save_spacy_language_model(model: spacy.language.Language, model_name: str) -> None:
     """write the spacy language model to disk.
     Args:
@@ -95,6 +101,12 @@ def load_spacy_language_model(model_name: str) -> spacy.language.Language:
 
 def set_reddit_credentials(client_id: str, client_secret: str) -> None:
     """Set the Reddit credentials environment variables."""
+    if not isinstance(client_id, str) or not isinstance(client_secret, str):
+        raise TypeError("Client ID and secret must be strings.")
+    if not client_id.strip() or not client_secret.strip():
+        raise ValueError("Client ID and secret cannot be empty.")
+    if not all(c in acceptable_chars() for c in client_id) or not all(c in acceptable_chars() for c in client_secret):
+        raise ValueError("Invalid client_id or client_secret")
     os.environ['REDDIT_CLIENT_ID'] = client_id
     os.environ['REDDIT_CLIENT_SECRET'] = client_secret
 
@@ -497,7 +509,7 @@ def convert_to_string(text: list) -> str:
     return text
 
 
-def get_subreddit_submissions(subreddit: praw.reddit.Subreddit, submission_type: str, limit: int = 10) -> List[Dict]:
+def get_subreddit_submissions(subreddit: str, submission_type: str, limit: int = 10) -> List[Dict]:
     """Get submissions from a subreddit
     :param subreddit: string of subreddit name
     :param submission_type: Type of submission "hot", "top", "new", "controversial", "gilded", "rising"
@@ -512,10 +524,10 @@ def get_subreddit_submissions(subreddit: praw.reddit.Subreddit, submission_type:
 
 def main():
     print("data_processing.py main()")
-    print("Setting up project environment variables. data_processing.py setup()")
 
     PROJECT_DIR = get_project_dir(os.getcwd(), PROJECT_NAME)
     DATA_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "data")
+    MODEL_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "model")
     LOGS_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "logs")
     CONFIG_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, ".config")
 
@@ -527,18 +539,22 @@ def main():
     env_variables_path = os.path.join(CONFIG_DIR, 'environment.env')
     load_environment_variables(env_variables_path)
     # (TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, or CRITICAL)
-    LOGURU_LEVEL = "INFO"
+
     os.environ["LOGURU_LEVEL"] = "DEBUG"
     log_dev_file = os.path.join(LOGS_DIR, 'development.log')
     logger.add(open(log_dev_file, "a"),
                format="{time:YYYY-MM-DD at HH:mm:ss} {module}::{function} [{level}] {message}",
                level="DEBUG")
 
-    model_path = os.path.join(DATA_DIR, "rta_nlp.bin")
-    if not os.path.isfile(model_path):
+    model_path = os.path.join(MODEL_DIR, "rta_nlp")
+    if not os.path.isdir(model_path):
+        logger.debug(f"Model not found at {model_path}. Creating new model.")
         app_setup(model_path)
     nlp = load_spacy_language_model(model_path)
     spacy_stopwords = nlp.Defaults.stop_words
+    creds = get_reddit_credentials()
+    reddit_conn = connect_to_reddit_with_oauth(creds[0], creds[1])
+    subreddit_conn = get_one_subreddit(reddit_conn, "Intune")
 
     return True
 
