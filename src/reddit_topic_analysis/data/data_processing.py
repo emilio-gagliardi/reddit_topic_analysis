@@ -117,7 +117,11 @@ def get_reddit_credentials() -> Tuple[str, str]:
     Returns:
         Tuple[str, str]: The Reddit client ID and client secret.
            """
-    return os.environ['REDDIT_CLIENT_ID'], os.environ['REDDIT_CLIENT_SECRET']
+    reddit_client_id = os.environ.get('REDDIT_CLIENT_ID')
+    reddit_client_secret = os.environ.get('REDDIT_CLIENT_SECRET')
+    if reddit_client_id is None or reddit_client_secret is None:
+        raise KeyError("No environmental variables set for Reddit credentials. Load or set them first.")
+    return reddit_client_id, reddit_client_secret
 
 
 def connect_to_reddit_with_oauth(client_id: str, client_secret: str, redirect_uri: str = 'http://localhost:8000',
@@ -135,12 +139,19 @@ def connect_to_reddit_with_oauth(client_id: str, client_secret: str, redirect_ur
                          client_secret=client_secret,
                          redirect_uri=redirect_uri,
                          user_agent=user_agent)
+    required_attrs = ['user_agent', 'client_id', 'client_secret', 'redirect_uri']
+    for attr in required_attrs:
+        if not hasattr(reddit, attr):
+            raise AttributeError(f'{attr} attribute not found in reddit connection')
     return reddit
 
 
 def get_one_subreddit(reddit_conn: praw.Reddit, name: str = 'Intune') -> praw.models.Subreddit:
+    if not isinstance(reddit_conn, praw.Reddit):
+        logger.debug(f"failed to connect to subreddit: {name}")
+        raise TypeError('reddit_conn must be an instance of praw.Reddit')
+
     subreddit = reddit_conn.subreddit(name)
-    logger.success(f"Connected to subreddit: {subreddit.display_name}")
 
     return subreddit
 
