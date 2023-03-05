@@ -33,6 +33,7 @@ def get_project_dir(cwd: str, base_dir: str) -> Path:
 PROJECT_NAME = "reddit_topic_analysis"
 PROJECT_DIR = get_project_dir(os.getcwd(), PROJECT_NAME)
 DATA_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "data")
+MODEL_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "model")
 LOGS_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "logs")
 CONFIG_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, ".config")
 
@@ -253,9 +254,17 @@ def main():
     print("running main")
     load_environment_variables(env_variables_path)
 
-    menu_options = ["get reddit submissions", "save raw submissions", "preprocess text",
+    menu_options = ["get reddit submissions", "save raw submissions", "process raw submissions",
                     "save cleaned submissions", "get cleaned submissions", "make BoW matrix",
                     "make tfidf matrix", "make similarity matrix", "save similarity matrix", "exit"]
+
+    model_path = os.path.join(MODEL_DIR, "rta_nlp")
+    if not os.path.isdir(model_path):
+        logger.debug(f"Model not found at {model_path}. Creating new model.")
+        reddit_topic_analysis.data.data_processing.model_setup(model_path)
+
+    nlp = reddit_topic_analysis.data.data_processing.load_spacy_language_model(model_path)
+    spacy_stopwords = nlp.Defaults.stop_words
 
     while True:
         for option_number, option_name in enumerate(menu_options, 1):
@@ -269,22 +278,39 @@ def main():
         match str(selection):
             case '1':
                 print("get reddit submissions")
+                creds = reddit_topic_analysis.data.data_processing.get_reddit_credentials()
+                reddit_conn = reddit_topic_analysis.data.data_processing.connect_to_reddit_with_oauth(creds[0],
+                                                                                                      creds[1])
+                subreddit_conn = reddit_topic_analysis.data.data_processing.get_one_subreddit(reddit_conn, "Intune")
+                submissions = reddit_topic_analysis.data.data_processing.extract_submission_info(subreddit_conn,
+                                                                                                 "hot", 3)
+                print(submissions)
             case '2':
-                print("save raw submissions")
+                print("=== save raw submissions ===")
+                creds = reddit_topic_analysis.data.data_processing.get_reddit_credentials()
+                reddit_conn = reddit_topic_analysis.data.data_processing.connect_to_reddit_with_oauth(creds[0],
+                                                                                                      creds[1])
+                sub_name = (input("Subreddit name: "))
+                subreddit_conn = reddit_topic_analysis.data.data_processing.get_one_subreddit(reddit_conn, sub_name)
+                num_subs = int(input("Number of submissions: "))
+                submissions = reddit_topic_analysis.data.data_processing.extract_submission_info(subreddit_conn,
+                                                                                                 "new", num_subs)
+                save(data=submissions, file_type="documents",
+                     db_name="reddit_tier_3", collection_name="reddit_submissions")
             case '3':
-                print("preprocess text")
+                print("=== process raw submissions ===")
             case '4':
-                print("save cleaned submissions")
+                print("=== save cleaned submissions ===")
             case '5':
-                print("get cleaned submissions")
+                print("=== get cleaned submissions ===")
             case '6':
-                print("make BoW matrix")
+                print("=== make BoW matrix ===")
             case '7':
-                print("make tfidf matrix")
+                print("=== make tfidf matrix ===")
             case '8':
-                print("make similarity matrix")
+                print("=== make similarity matrix ===")
             case '9':
-                print("save similarity matrix")
+                print("=== save similarity matrix ===")
             case '10':
                 print("exit")
                 break
