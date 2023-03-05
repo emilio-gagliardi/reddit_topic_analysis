@@ -7,6 +7,10 @@ import tempfile
 import random
 import praw
 from unittest.mock import MagicMock
+from unittest import TestCase, mock
+import spacy
+from spacy.tokens import Doc
+from spacy.vocab import Vocab
 
 
 def acceptable_chars() -> str:
@@ -85,3 +89,54 @@ def test_get_one_subreddit():
     reddit.subreddit = MagicMock(return_value=subreddit)
     result = sut.get_one_subreddit(reddit)
     assert result == subreddit
+
+
+def test_extract_submission_info():
+    pass
+
+
+class TestCountWords(TestCase):
+    def test_count_words_len_only(self):
+        tokenizer_mock = MagicMock()
+        # Configure the mock to return a mock Doc object
+        doc_mock = MagicMock()
+        doc_mock.__len__.return_value = 5
+        tokenizer_mock.return_value = doc_mock
+
+        # Call the function with the mock tokenizer
+        result = sut.count_words(tokenizer_mock, "This is a test sentence.")
+
+        # Check that the result is correct
+        self.assertEqual(result, 5)
+
+    def test_count_words_correct_tokens(self):
+        # Define the input text and expected number of tokens
+        input_text = "This is a test sentence."
+        expected_num_tokens = 5
+
+        # Create a mock tokenizer and mock doc object
+        tokenizer_mock = mock.MagicMock(spec=sut.NLPTokenizer)
+        vocab_mock = mock.MagicMock(spec=spacy.vocab.Vocab)
+        doc_mock = Doc(vocab_mock, words=input_text.split())
+        tokenizer_mock.return_value = doc_mock
+
+        # call the function being tested
+        result = sut.count_words(tokenizer_mock, input_text)
+
+        # assert the result
+        self.assertEqual(result, expected_num_tokens)
+
+
+class TestCountHashtags(TestCase):
+
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.count_hashtags(text), 0)
+
+    def test_no_hashtags(self):
+        text = "This is a test string without any hashtags."
+        self.assertEqual(sut.count_hashtags(text), 0)
+
+    def test_correct_number_of_hashtags(self):
+        text = "This is a #test string #with a few #hashtags."
+        self.assertEqual(sut.count_hashtags(text), 3)

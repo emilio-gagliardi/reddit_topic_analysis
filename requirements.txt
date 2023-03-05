@@ -41,3 +41,4 @@ scikit-learn~=1.2.1
 scipy~=1.10.1
 textatistic~=0.0.1
 wheel~=0.38.4
+prawcore~=2.3.0

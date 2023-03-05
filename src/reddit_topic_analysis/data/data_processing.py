@@ -5,6 +5,7 @@ import better_profanity
 import dotenv
 from loguru import logger
 import praw
+import prawcore
 import pandas as pd
 import numpy
 from typing import List, Dict, Tuple, Any, TypeVar
@@ -14,6 +15,8 @@ from spacy.lang.en.lemmatizer import Lemmatizer
 import textatistic
 import sklearn.feature_extraction.text
 import scipy.sparse
+
+from reddit_topic_analysis.main import dicts_to_json
 
 # import textacy
 # enable CUDA support
@@ -135,14 +138,14 @@ def connect_to_reddit_with_oauth(client_id: str, client_secret: str, redirect_ur
     Returns:
         praw.Reddit: The Reddit connection.
     """
-    reddit = praw.Reddit(client_id=client_id,
-                         client_secret=client_secret,
-                         redirect_uri=redirect_uri,
-                         user_agent=user_agent)
-    required_attrs = ['user_agent', 'client_id', 'client_secret', 'redirect_uri']
-    for attr in required_attrs:
-        if not hasattr(reddit, attr):
-            raise AttributeError(f'{attr} attribute not found in reddit connection')
+    try:
+        reddit = praw.Reddit(client_id=client_id,
+                             client_secret=client_secret,
+                             redirect_uri=redirect_uri,
+                             user_agent=user_agent)
+    except prawcore.exceptions.RequestException:
+        raise Exception("Could not connect to Reddit API. Please check your network connection and API credentials.")
+
     return reddit
 
 
@@ -167,6 +170,9 @@ def extract_submission_info(subreddit_conn: praw.models.Subreddit,
     Returns:
         List[Dict[str, Any]]: A list of dictionaries containing the submission information.
     """
+    if not isinstance(subreddit_conn, praw.models.Subreddit):
+        logger.debug(f"Invalid subreddit object")
+        raise TypeError('subreddit_conn must be an instance of praw.models.Subreddit')
 
     allowed_types = ["hot", "top", "new", "controversial", "gilded", "rising"]
 
@@ -189,6 +195,8 @@ def extract_submission_info(subreddit_conn: praw.models.Subreddit,
                                  "likes": submission.likes,
                                  "url": submission.url,
                                  "score": submission.score}
+            # replace_more is an attribute that exposes all comments in a submission.
+            # otherwise only the top level comments are exposed.
             submission.comments.replace_more(limit=None)
             submission_subset["comments"] = {}
 
@@ -566,7 +574,9 @@ def main():
     creds = get_reddit_credentials()
     reddit_conn = connect_to_reddit_with_oauth(creds[0], creds[1])
     subreddit_conn = get_one_subreddit(reddit_conn, "Intune")
-
+    submissions = extract_submission_info(subreddit_conn, "hot", 3)
+    json_payload = dicts_to_json(submissions)
+    print(json_payload)
     return True
 
 

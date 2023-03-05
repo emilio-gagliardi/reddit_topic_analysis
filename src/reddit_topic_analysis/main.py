@@ -12,7 +12,6 @@ from pathlib import Path
 
 
 def get_project_dir(cwd: str, base_dir: str) -> Path:
-
     # Get the current working directory
     current_dir = cwd
 
@@ -104,13 +103,31 @@ def load_environment_variables(env_file: str) -> None:
         logger.warning("File not found. Could not load environment variables.")
 
 
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return obj.decode('utf-8')
+        return json.JSONEncoder.default(self, obj)
+
+
 def dicts_to_json(data_list: List[Dict]) -> str:
     if len(data_list) > 0:
-        json_data = json.dumps(data_list, indent=1, ensure_ascii=False)
+        try:
+            json_data = []
+            for item in data_list:
+                json_item = {}
+                for key, value in item.items():
+                    if isinstance(value, bytes):
+                        value = value.decode('utf-8')
+                    json_item[key] = value
+                json_data.append(json_item)
+            return json.dumps(json_data, cls=CustomJSONEncoder)
+        except TypeError as e:
+            print(f"Error serializing data: {e}")
+            print(f"Offending item: {e.args[0].split(' ')[3]}")
     else:
-        logger.warning("No data to convert to JSON.")
-        json_data = None
-    return json_data
+        print("No data to convert to JSON.")
+        return None
 
 
 def save(data,
@@ -245,7 +262,7 @@ def main():
             print(f"{option_number}. {option_name}")
         selection = int(input("Type your menu selection: "))
 
-        if selection not in range(len(menu_options)+1):
+        if selection not in range(len(menu_options) + 1):
             print("Incorrect option, please try again...")
             continue
         print(f"you selected {selection}")
@@ -275,4 +292,5 @@ def main():
 
 if __name__ == "__main__":
     import reddit_topic_analysis.data.data_processing
+
     main()
