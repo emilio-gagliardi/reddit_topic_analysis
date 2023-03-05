@@ -140,3 +140,209 @@ class TestCountHashtags(TestCase):
     def test_correct_number_of_hashtags(self):
         text = "This is a #test string #with a few #hashtags."
         self.assertEqual(sut.count_hashtags(text), 3)
+
+
+class TestCountMentions(TestCase):
+
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.count_mentions(text), 0)
+
+    def test_no_mentions(self):
+        text = "This is a test string without any mentions."
+        self.assertEqual(sut.count_mentions(text), 0)
+
+    def test_correct_number_of_mentions(self):
+        text = "This is a test @string with a few @mentions."
+        self.assertEqual(sut.count_mentions(text), 2)
+
+
+class TestGetSentences(TestCase):
+
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.get_sentences(text), [])
+
+    def test_no_sentences(self):
+        text = "bob apple donut pool"
+        self.assertEqual(sut.get_sentences(text), [])
+
+    def test_correct_number_of_sentences(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.get_sentences(text), ["This is a test string.", "With two sentences."])
+
+
+class TestGetAllTokens(TestCase):
+    """Tests for the get_all_tokens function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.get_all_tokens(text), [])
+
+    def test_no_tokens(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.get_all_tokens(text), [])
+
+    def test_correct_number_of_tokens(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.get_all_tokens(text), ["This", "is", "a", "test", "string", "With", "two", "sentences"])
+
+
+class TestGetAllLemmas(TestCase):
+    """Tests for the get_all_lemmas function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.get_all_lemmas(text), [])
+
+    def test_no_lemmas(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.get_all_lemmas(text), [])
+
+    def test_correct_number_of_lemmas(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.get_all_lemmas(text), ["this", "be", "a", "test", "string", "with", "two", "sentence"])
+
+
+class TestGetAllPos(TestCase):
+    """Tests for the get_all_pos function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.get_all_pos(text), [])
+
+    def test_no_pos(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.get_all_pos(text), [])
+
+    def test_correct_number_of_pos(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.get_all_pos(text), ["DET", "VERB", "DET", "NOUN", "NOUN", "ADP", "NUM", "NOUN"])
+
+
+class TestRemoveStopwords(TestCase):
+    """Tests for the remove_stopwords function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.remove_stopwords(text), [])
+
+    def test_no_stopwords(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.remove_stopwords(text), [])
+
+    def test_correct_number_of_stopwords(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.remove_stopwords(text), ["test", "string", "sentences"])
+
+
+class TestCountProperNouns(TestCase):
+    """Tests for the count_proper_nouns function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.count_proper_nouns(text), 0)
+
+    def test_no_proper_nouns(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.count_proper_nouns(text), 0)
+
+    def test_correct_number_of_proper_nouns(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.count_proper_nouns(text), 1)
+
+
+class TestCountNouns(TestCase):
+    """Tests for the count_nouns function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.count_nouns(text), 0)
+
+    def test_no_nouns(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.count_nouns(text), 0)
+
+    def test_correct_number_of_nouns(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.count_nouns(text), 3)
+
+
+class TestFindNouns(TestCase):
+    """Tests for the find_nouns function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.find_nouns(text), [])
+
+    def test_no_nouns(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.find_nouns(text), [])
+
+    def test_correct_number_of_nouns(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.find_nouns(text), ["string", "sentences"])
+
+
+class TestFindPersons(TestCase):
+    """Tests for the find_persons function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.find_persons(text), [])
+
+    def test_no_persons(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.find_persons(text), [])
+
+    def test_correct_number_of_persons(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.find_persons(text), ["This"])
+
+
+class TestFindProperNouns(TestCase):
+    """Tests for the find_proper_nouns function.
+    Boilerplate only"""
+    def test_empty_string(self):
+        text = ""
+        self.assertEqual(sut.find_proper_nouns(text), [])
+
+    def test_no_proper_nouns(self):
+        text = "bobappledonutpool"
+        self.assertEqual(sut.find_proper_nouns(text), [])
+
+    def test_correct_number_of_proper_nouns(self):
+        text = "This is a test string. With two sentences."
+        self.assertEqual(sut.find_proper_nouns(text), ["This"])
+
+
+class TestPreprocessForVectorization(TestCase):
+    """Tests for the preprocess_for_vectorization function.
+    Boilerplate only"""
+    def test_preprocess_for_vectorization(self):
+        text = "This is a test string. With two sentences."
+        print(text)
+
+
+class TestCreateBowMatrix(TestCase):
+    """Tests for the create_bow_matrix function.
+    Boilerplate only"""
+    def test_create_bow_matrix(self):
+        text = "This is a test string. With two sentences."
+        print(text)
+
+
+class TestCreateTfidfMatrix(TestCase):
+    """Tests for the create_tfidf_matrix function.
+    Boilerplate only"""
+    def test_create_tfidf_matrix(self):
+        text = "This is a test string. With two sentences."
+        print(text)
+
+
+class TestCreateSimilarityMatrix(TestCase):
+    """Tests for the create_similarity_matrix function.
+    Boilerplate only"""
+    def test_create_similarity_matrix(self):
+        text = "This is a test string. With two sentences."
+        print(text)

@@ -12,20 +12,22 @@ from typing import List, Dict, Tuple, Any, TypeVar
 import re
 import spacy
 from spacy.lang.en.lemmatizer import Lemmatizer
+from spacy.tokenizer import Tokenizer
+from spacy.tokens.span import Span
 import textatistic
 import sklearn.feature_extraction.text
 import scipy.sparse
-
 from reddit_topic_analysis.main import dicts_to_json
-
-# import textacy
 # enable CUDA support
 spacy.prefer_gpu()
+# import textacy
+
 
 PROJECT_NAME = "reddit_topic_analysis"
 
-NLPTokenizer = TypeVar('NLPTokenizer', bound='spacy.tokenizer.Tokenizer')
-NLPLemmatizer = TypeVar('NLPLemmatizer', bound=Lemmatizer)
+NLPTokenizer = TypeVar('NLPTokenizer', bound=spacy.tokenizer.Tokenizer)
+NLPLemmatizer = TypeVar('NLPLemmatizer', bound=spacy.lang.en.lemmatizer.Lemmatizer)
+NLPSentences = TypeVar('NLPSentences', bound=spacy.tokens.span.Span)
 
 
 def get_project_dir(cwd: str, base_dir: str) -> str:
@@ -60,7 +62,7 @@ def load_environment_variables(env_file_path: str) -> None:
         logger.warning("File not found. Could not load environment variables.")
 
 
-def app_setup(language_model_path: str):
+def model_setup(language_model_path: str):
     rta_nlp = spacy.load("en_core_web_sm")
     print(language_model_path)
     save_spacy_language_model(rta_nlp, language_model_path)
@@ -263,18 +265,18 @@ def compute_readability(text: str) -> Dict[str, float]:
     return readability_scores
 
 
-def get_sentences(tokenizer: NLPTokenizer, text: str) -> List[Any]:
+def get_sentences(sentence_tokenizer: NLPSentences, text: str) -> List[Any]:
     """
     get the sentences from a text. Using SpaCy's default sentence tokenizer.
     SpaCy returns a generator of spacy.Spans, so we convert it to a list.
     Args:
-        tokenizer: a model that takes text and returns a set of sentences.
+        sentence_tokenizer: a model that takes text and returns a set of sentences.
         text: the text to get the sentences from.
-
+    sentence_tokenizer: a model that takes text and returns a set of sentences.
     Returns:
         List[Any]: a list of sentences.
     """
-    doc = tokenizer(text)
+    doc = sentence_tokenizer(text)
     sentences = list(doc.sents)
     return sentences
 
@@ -576,7 +578,7 @@ def main():
     subreddit_conn = get_one_subreddit(reddit_conn, "Intune")
     submissions = extract_submission_info(subreddit_conn, "hot", 3)
     json_payload = dicts_to_json(submissions)
-    print(json_payload)
+
     return True
 
 
