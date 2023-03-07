@@ -5,7 +5,7 @@ import sqlite3
 import dotenv
 from loguru import logger
 import json
-# import pandas as pd
+import pandas as pd
 import pymongo
 from typing import List, Tuple, Any, Dict
 from pathlib import Path
@@ -250,6 +250,27 @@ def save_as_json(data: str) -> None:
         logger.warning("No data to save.")
 
 
+def load_documents(db_name, collection_name, query=None, limit=10):
+
+    try:
+        with MongoDBConnection() as mongo:
+            db = mongo.connection[db_name]
+            collection = db[collection_name]
+            if query is None:
+                cursor = collection.find().limit(limit)
+            else:
+                logger.debug(f"Query: {query}")
+                cursor = collection.find(query).limit(limit)
+
+            data = [doc for doc in cursor]
+            df = pd.DataFrame(data)
+            logger.debug(df.head(3))
+            return df
+    except Exception as e:
+        logger.error(f"Couldn't connect to mongoDB{e}")
+        return None
+
+
 def main():
     print("running main")
     load_environment_variables(env_variables_path)
@@ -299,6 +320,13 @@ def main():
                      db_name="reddit_tier_3", collection_name="reddit_submissions")
             case '3':
                 print("=== process raw submissions ===")
+                # get raw submissions from MongoDB
+                submissions = load_documents(db_name="reddit_tier_3", collection_name="reddit_submissions",
+                                             query=None, limit=10)
+                json_payload = dicts_to_json(submissions)
+                logger.debug(json_payload)
+                # save to MongoDB
+                # save_to_mongo_one(json_payload, "reddit_submissions")
             case '4':
                 print("=== save cleaned submissions ===")
             case '5':
