@@ -25,9 +25,9 @@ spacy.prefer_gpu()
 
 PROJECT_NAME = "reddit_topic_analysis"
 
-NLPTokenizer = TypeVar('NLPTokenizer', bound=spacy.tokenizer.Tokenizer)
-NLPLemmatizer = TypeVar('NLPLemmatizer', bound=spacy.lang.en.lemmatizer.Lemmatizer)
-NLPSentences = TypeVar('NLPSentences', bound=spacy.tokens.span.Span)
+# NLPTokenizer = TypeVar('NLPTokenizer', bound=spacy.tokenizer.Tokenizer)
+# NLPLemmatizer = TypeVar('NLPLemmatizer', bound=spacy.lang.en.lemmatizer.Lemmatizer)
+# NLPSentences = TypeVar('NLPSentences', bound=spacy.tokens.span.Span)
 
 
 def get_project_dir(cwd: str, base_dir: str) -> str:
@@ -37,16 +37,17 @@ def get_project_dir(cwd: str, base_dir: str) -> str:
     """
     # Get the current working directory
     current_dir = cwd
-
+    current_file = os.path.basename(__file__)
     # Loop until we find the topmost directory
     while True:
         # Check if we've reached the root directory
+        print(current_dir)
         if current_dir == os.path.abspath(os.sep):
             raise ValueError("Could not find project directory")
 
         # Check if the current directory has the expected structure
-        if os.path.basename(current_dir) == base_dir and \
-                os.path.basename(os.path.dirname(current_dir)) == "src":
+        if (os.path.basename(current_dir) == base_dir and
+                os.path.basename(os.path.dirname(current_dir)) in ("src", "tests")):
             return os.path.dirname(os.path.dirname(current_dir))
 
         # Move up to the parent directory
@@ -220,9 +221,17 @@ def extract_submission_info(subreddit_conn: praw.models.Subreddit,
     return submission_subset_list
 
 
-def count_words(tokenizer: NLPTokenizer, text: str) -> int:
-    doc = tokenizer(text)
-    return len(doc)
+def count_words(model, text: str) -> int:
+    """Count the number of words in a text after the text has been cleaned for punctuation.
+    Args:
+        model: The tokenizer to use.
+        text (str): The text to count the words in.
+    Returns:
+        int: The number of tokens in the text excluding punctuation and stopwords.
+    """
+    doc = model(text)
+    word_tokens = [token.text for token in doc if token.is_alpha]
+    return len(word_tokens)
 
 
 def count_hashtags(text: str) -> int:
@@ -265,7 +274,7 @@ def compute_readability(text: str) -> Dict[str, float]:
     return readability_scores
 
 
-def get_sentences(sentence_tokenizer: NLPSentences, text: str) -> List[Any]:
+def get_sentences(model, text: str) -> List[Any]:
     """
     get the sentences from a text. Using SpaCy's default sentence tokenizer.
     SpaCy returns a generator of spacy.Spans, so we convert it to a list.
@@ -276,14 +285,14 @@ def get_sentences(sentence_tokenizer: NLPSentences, text: str) -> List[Any]:
     Returns:
         List[Any]: a list of sentences.
     """
-    doc = sentence_tokenizer(text)
+    doc = model(text)
     sentences = list(doc.sents)
     return sentences
 
 
-def get_all_tokens(tokenizer: NLPTokenizer, text) -> List[str]:
+def get_all_tokens(model, text) -> List[str]:
     """
-    get all tokens from a text in contrast to lemmas where there are fewer lemmas than tokens.
+    get all tokens from a text including punctuation and stopwords.
     Args:
         tokenizer: a class that takes a text and returns a set of tokens.
         text:
@@ -291,27 +300,48 @@ def get_all_tokens(tokenizer: NLPTokenizer, text) -> List[str]:
     Returns:
 
     """
-    doc = tokenizer(text)
+    doc = model(text)
     tokens = [token.text for token in doc]
     return tokens
 
 
-def get_all_lemmas(lemmatizer: NLPLemmatizer, text: str) -> List[str]:
-    """Get all lemmas for a text.
+def get_lemmas(model,  text: str, keep_punctuation=False, keep_stop_words=False, stop_words=None) -> List[str]:
+    """Get lemmas for a text exclude punctuation and stopwords by default.
     Currently, using SpaCy's default lemmatizer pipe .:. function syntax
-    follows SpaCy's usage.
+    follows SpaCy's implementation.
     Args:
+        stop_words:
+        keep_stop_words:
+        keep_punctuation:
         lemmatizer: The SpaCy lemmatizer currently.
         text (str): The text to get the lemmas from.
     Returns:
         List[str]: A list of lemmas.
     """
-    doc = lemmatizer(text)
-    lemmas = [token.lemma_ for token in doc]
+    if stop_words is None:
+        keep_stop_words = True
+    try:
+        doc = model(text)
+    except ValueError:
+        logger.error(f"ValueError: {text}")
+        return []
+    if keep_punctuation and keep_stop_words:
+        print("both True")
+        lemmas = [token.lemma_ for token in doc]
+    elif keep_punctuation:
+        print("keep punctuation True")
+        lemmas = [token.lemma_ for token in doc if token.lemma_ not in stop_words]
+    elif keep_stop_words:
+        print("keep stop True")
+        lemmas = [token.lemma_ for token in doc if token.is_alpha]
+    else:
+        print("both False")
+        lemmas = [token.lemma_ for token in doc if token.is_alpha and token.lemma_ not in stop_words]
+
     return lemmas
 
 
-def get_all_pos(parser, text: str) -> List[Tuple[str, str]]:
+def get_all_pos(model, text: str) -> List[Tuple[str, str]]:
     """Get all parts of speech for a text.
     Currently, using SpaCy's default parsing pipe .:. function syntax
     follows SpaCy's usage.
@@ -319,9 +349,9 @@ def get_all_pos(parser, text: str) -> List[Tuple[str, str]]:
         parser: The SpaCy default parser in spacy.Language
         text (str): The text to get the lemmas from.
     Returns:
-        List[str]: A list of lemmas.
+        List[Tuple[str, str]]: A list of tuples (word, pos).
     """
-    doc = parser(text)
+    doc = model(text)
     pos = [(token.text, token.pos_) for token in doc]
     return pos
 
@@ -336,7 +366,7 @@ def preprocess_for_vectorization(model, text: str, **kwargs) -> str:
     doc = model(text)
     stopwords = kwargs.get("stopwords", None)
     # Generate lemmas
-    lemmas = get_all_lemmas(doc)
+    lemmas = get_lemmas(doc)
     if stopwords:
         lemmas = remove_stopwords(lemmas, stopwords)
 
@@ -544,41 +574,66 @@ def get_subreddit_submissions(subreddit: str, submission_type: str, limit: int =
 
 
 def main():
-    print("data_processing.py main()")
-
-    PROJECT_DIR = get_project_dir(os.getcwd(), PROJECT_NAME)
-    DATA_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "data")
-    MODEL_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "model")
-    LOGS_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "logs")
-    CONFIG_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, ".config")
-
-    logger.debug(f"project dir is {PROJECT_DIR}")
-    logger.debug(f"data dir is {DATA_DIR}")
-    logger.debug(f"logs dir is {LOGS_DIR}")
-    logger.debug(f"config dir is {CONFIG_DIR}")
-
-    env_variables_path = os.path.join(CONFIG_DIR, 'environment.env')
-    load_environment_variables(env_variables_path)
+    # print("data_processing.py main()")
+    # print(os.getcwd())
+    # PROJECT_DIR = get_project_dir(os.getcwd(), PROJECT_NAME)
+    # DATA_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "data")
+    # MODEL_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "model")
+    # LOGS_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, "logs")
+    # CONFIG_DIR = os.path.join(PROJECT_DIR, "src", PROJECT_NAME, ".config")
+    #
+    # logger.debug(f"project dir is {PROJECT_DIR}")
+    # logger.debug(f"data dir is {DATA_DIR}")
+    # logger.debug(f"logs dir is {LOGS_DIR}")
+    # logger.debug(f"config dir is {CONFIG_DIR}")
+    #
+    # env_variables_path = os.path.join(CONFIG_DIR, 'environment.env')
+    # load_environment_variables(env_variables_path)
     # (TRACE, DEBUG, INFO, SUCCESS, WARNING, ERROR, or CRITICAL)
+    #
+    # os.environ["LOGURU_LEVEL"] = "DEBUG"
+    # log_dev_file = os.path.join(LOGS_DIR, 'development.log')
+    # logger.add(open(log_dev_file, "a"),
+    #            format="{time:YYYY-MM-DD at HH:mm:ss} {module}::{function} [{level}] {message}",
+    #            level="DEBUG")
+    #
+    # model_path = os.path.join(MODEL_DIR, "rta_nlp")
+    # if not os.path.isdir(model_path):
+    #     logger.debug(f"Model not found at {model_path}. Creating new model.")
+    #     model_setup(model_path)
+    # nlp = load_spacy_language_model(model_path)
+    # spacy_stopwords = nlp.Defaults.stop_words
+    # creds = get_reddit_credentials()
+    # reddit_conn = connect_to_reddit_with_oauth(creds[0], creds[1])
+    # subreddit_conn = get_one_subreddit(reddit_conn, "Intune")
+    # submissions = extract_submission_info(subreddit_conn, "hot", 3)
+    # json_payload = dicts_to_json(submissions)
+    # sample = "Pandas is an industry standard for analyzing data in Python. With a few keystrokes, you can load, filter, restructure, and visualize gigabytes of heterogeneous information."
+    # expected_words = ['Pandas', 'is', 'an', 'industry', 'standard', 'for', 'analyzing', 'data', 'in', 'Python', '.', 'With', 'a', 'few', 'keystrokes', ',', 'you', 'can', 'load', ',', 'filter', ',', 'restructure', ',', 'and', 'visualize', 'gigabytes', 'of', 'heterogeneous', 'information', '.']
+    # expected_lemmas = ['panda', 'industry', 'standard', 'analyze', 'datum', 'Python', 'keystroke', 'load', 'filter', 'restructure', 'visualize', 'gigabyte', 'heterogeneous', 'information']
+    # expected_sentences = get_sentences(nlp, sample)
+    # expected_pos = [('Pandas', 'NOUN'), ('is', 'AUX'), ('an', 'DET'), ('industry', 'NOUN'), ('standard', 'NOUN'), ('for', 'ADP'), ('analyzing', 'VERB'), ('data', 'NOUN'), ('in', 'ADP'), ('Python', 'PROPN'), ('.', 'PUNCT'), ('With', 'ADP'), ('a', 'DET'), ('few', 'ADJ'), ('keystrokes', 'NOUN'), (',', 'PUNCT'), ('you', 'PRON'), ('can', 'AUX'), ('load', 'VERB'), (',', 'PUNCT'), ('filter', 'NOUN'), (',', 'PUNCT'), ('restructure', 'NOUN'), (',', 'PUNCT'), ('and', 'CCONJ'), ('visualize', 'VERB'), ('gigabytes', 'NOUN'), ('of', 'ADP'), ('heterogeneous', 'ADJ'), ('information', 'NOUN'), ('.', 'PUNCT')]
+    # doc_no_tokens = nlp("")
+    # doc_sample_tokens = nlp(sample)
 
-    os.environ["LOGURU_LEVEL"] = "DEBUG"
-    log_dev_file = os.path.join(LOGS_DIR, 'development.log')
-    logger.add(open(log_dev_file, "a"),
-               format="{time:YYYY-MM-DD at HH:mm:ss} {module}::{function} [{level}] {message}",
-               level="DEBUG")
 
-    model_path = os.path.join(MODEL_DIR, "rta_nlp")
-    if not os.path.isdir(model_path):
-        logger.debug(f"Model not found at {model_path}. Creating new model.")
-        app_setup(model_path)
-    nlp = load_spacy_language_model(model_path)
-    spacy_stopwords = nlp.Defaults.stop_words
-    creds = get_reddit_credentials()
-    reddit_conn = connect_to_reddit_with_oauth(creds[0], creds[1])
-    subreddit_conn = get_one_subreddit(reddit_conn, "Intune")
-    submissions = extract_submission_info(subreddit_conn, "hot", 3)
-    json_payload = dicts_to_json(submissions)
-
+    # doc_sents = [sent for sent in doc_sample_tokens.sents]
+    # all_tokens = [token.text for token in doc_sample_tokens]
+    # word_tokens = [token.text for token in doc_sample_tokens if token.is_alpha]
+    # filtered_tokens = [token for token in word_tokens if token not in spacy_stopwords]
+    # lemma_tokens = [token.lemma_ for token in doc_sample_tokens if token.is_alpha and token.lemma_ not in spacy_stopwords]
+    # func_lemmas = get_lemmas(nlp, sample, stop_words=spacy_stopwords)
+    # func_pos = get_all_pos(nlp, sample)
+    # print(all_tokens[0], type(all_tokens[0]))
+    # print(lemma_tokens[0], type(lemma_tokens[0]))
+    # print(word_tokens, str(len(word_tokens)))
+    # print(filtered_tokens, str(len(filtered_tokens)))
+    #
+    # print(type(expected_sentences[0]))
+    # print(get_all_tokens(nlp, sample), str(len(get_all_tokens(nlp, sample))))
+    # print(lemma_tokens, str(len(lemma_tokens)))
+    # print(func_lemmas, str(len(func_lemmas)))
+    # print(func_pos, str(len(func_pos)))
     return True
 
 
